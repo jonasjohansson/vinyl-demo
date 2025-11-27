@@ -25,10 +25,6 @@ controls.target.set(0, 0, 0);
 
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x111122, 1.1);
 scene.add(hemiLight);
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-dirLight.position.set(2.5, 3, 1.5);
-dirLight.castShadow = false;
-scene.add(dirLight);
 
 const textureLoader = new THREE.TextureLoader();
 const artworkChoices = {
@@ -43,9 +39,12 @@ const DEFAULT_STATE = {
   frontArt: "Front",
   backArt: "Back",
   vinylReveal: 0.25,
-  backgroundColor: "#dfe7fb",
+  backgroundColor: "#100f0f",
   autoOrbit: false,
   overlayOpacity: 1,
+  hemiIntensity: 1.1,
+  hemiSkyColor: "#ffffff",
+  hemiGroundColor: "#111122",
 };
 
 const loadPersistedState = () => {
@@ -90,6 +89,13 @@ const state = (() => {
   merged.backArt = artworkChoices[merged.backArt] ? merged.backArt : DEFAULT_STATE.backArt;
   merged.vinylReveal = THREE.MathUtils.clamp(merged.vinylReveal, 0, 1);
   merged.overlayOpacity = THREE.MathUtils.clamp(merged.overlayOpacity, 0, 1);
+  merged.hemiIntensity = THREE.MathUtils.clamp(
+    typeof merged.hemiIntensity === "number" ? merged.hemiIntensity : DEFAULT_STATE.hemiIntensity,
+    0,
+    3
+  );
+  merged.hemiSkyColor = typeof merged.hemiSkyColor === "string" ? merged.hemiSkyColor : DEFAULT_STATE.hemiSkyColor;
+  merged.hemiGroundColor = typeof merged.hemiGroundColor === "string" ? merged.hemiGroundColor : DEFAULT_STATE.hemiGroundColor;
   return merged;
 })();
 
@@ -104,6 +110,9 @@ const persistState = () => {
         backgroundColor: state.backgroundColor,
         autoOrbit: state.autoOrbit,
         overlayOpacity: state.overlayOpacity,
+        hemiIntensity: state.hemiIntensity,
+        hemiSkyColor: state.hemiSkyColor,
+        hemiGroundColor: state.hemiGroundColor,
       })
     );
   } catch (error) {
@@ -207,6 +216,13 @@ const updateOverlayOpacity = (value) => {
 
 reloadOverlayTexture();
 updateOverlayOpacity(state.overlayOpacity);
+const updateHemiLight = () => {
+  hemiLight.intensity = state.hemiIntensity;
+  hemiLight.color.set(state.hemiSkyColor);
+  hemiLight.groundColor.set(state.hemiGroundColor);
+};
+
+updateHemiLight();
 
 updateVinylReveal(state.vinylReveal);
 
@@ -299,6 +315,33 @@ fxFolder
     persistState();
   });
 fxFolder.open();
+
+const lightingFolder = gui.addFolder("Lighting");
+lightingFolder
+  .add(state, "hemiIntensity", 0, 3, 0.01)
+  .name("Hemisphere Intensity")
+  .onChange((value) => {
+    state.hemiIntensity = value;
+    updateHemiLight();
+    persistState();
+  });
+lightingFolder
+  .addColor(state, "hemiSkyColor")
+  .name("Hemisphere Sky")
+  .onChange((value) => {
+    state.hemiSkyColor = value;
+    updateHemiLight();
+    persistState();
+  });
+lightingFolder
+  .addColor(state, "hemiGroundColor")
+  .name("Hemisphere Ground")
+  .onChange((value) => {
+    state.hemiGroundColor = value;
+    updateHemiLight();
+    persistState();
+  });
+lightingFolder.open();
 
 window.addEventListener("resize", () => {
   const { innerWidth, innerHeight } = window;
