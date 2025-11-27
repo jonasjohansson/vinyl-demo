@@ -5,6 +5,7 @@ import GUI from "https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm";
 const appEl = document.getElementById("app");
 const frontUploadInput = document.getElementById("front-upload");
 const backUploadInput = document.getElementById("back-upload");
+const dropOverlay = document.getElementById("drop-overlay");
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -255,6 +256,47 @@ const updateBackgroundColor = (value) => {
 };
 updateBackgroundColor(state.backgroundColor);
 persistState();
+
+const showDropOverlay = () => {
+  dropOverlay.classList.add("visible");
+};
+
+const hideDropOverlay = () => {
+  dropOverlay.classList.remove("visible");
+};
+
+let dragDepth = 0;
+
+const handleDrop = (event) => {
+  event.preventDefault();
+  dragDepth = 0;
+  hideDropOverlay();
+  const file = event.dataTransfer.files?.[0];
+  if (!file || !file.type.startsWith("image/")) {
+    return;
+  }
+  const targetMaterial = event.clientX < window.innerWidth / 2 ? frontMaterial : backMaterial;
+  applyCustomArtwork(targetMaterial, file);
+};
+
+window.addEventListener("dragenter", (event) => {
+  event.preventDefault();
+  dragDepth += 1;
+  showDropOverlay();
+});
+
+window.addEventListener("dragover", (event) => {
+  event.preventDefault();
+});
+
+window.addEventListener("dragleave", (event) => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) {
+    hideDropOverlay();
+  }
+});
+
+window.addEventListener("drop", handleDrop);
 
 const gui = new GUI();
 const coverFolder = gui.addFolder("Sleeve Artwork");
