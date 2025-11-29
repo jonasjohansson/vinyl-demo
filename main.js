@@ -29,8 +29,8 @@ scene.add(hemiLight);
 
 const textureLoader = new THREE.TextureLoader();
 const artworkChoices = {
-  Front: "front.png",
-  Back: "back.png",
+  Front: "front.jpg",
+  Back: "back.jpg",
 };
 
 const vinylTexturePath = "disc.png";
