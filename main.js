@@ -20,15 +20,15 @@ scene.background = new THREE.Color(0x433423); // Dark brown
 renderer.setClearColor(scene.background);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 50);
-camera.position.set(1.5, 0.85, 1.5);
-camera.lookAt(0, 0, 0);
+camera.position.set(3, 1.5, 3); // Zoomed out more by default
+camera.lookAt(0, 0.9, 0);
 
 // Create a dummy object for controls, then apply rotation to sleeveGroup
 const controlsTarget = new THREE.Object3D();
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.target.set(0, 0.2, 0); // Will update after sleeveGroup is created
+controls.target.set(0, 0.9, 0); // Fixed 1.5m above floor (floor at -0.6, so 0.9)
 controls.enablePan = false;
 controls.enableRotate = false; // We handle rotation manually
 controls.enableZoom = true;
@@ -40,9 +40,9 @@ controls.enableKeys = false;
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x111122, 1.1);
 scene.add(hemiLight);
 
-// Directional light for shadows
+// Directional light for shadows - positioned from the front
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(2, 3, 2);
+dirLight.position.set(2, 3, 2); // From the front
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 2048;
 dirLight.shadow.mapSize.height = 2048;
@@ -70,16 +70,16 @@ const DEFAULT_STATE = {
   vinylReveal: 0.25,
   backgroundColor: "#433423", // Dark brown
   autoOrbit: false,
-  autoOrbitSpeed: 0.0625, // 1/4 of original speed (0.25 / 4)
-  overlayOpacity: 1,
-  hemiIntensity: 1.1,
+  autoOrbitSpeed: 0.05, // Default orbit speed
+  overlayOpacity: 0.3,
+  hemiIntensity: 2,
   hemiSkyColor: "#ffffff",
   hemiGroundColor: "#111122",
-  brightness: 1.0,
+  brightness: 3,
   fogEnabled: true,
   fogColor: "#433423", // Will be synced with backgroundColor
-  fogNear: 2,
-  fogFar: 8,
+  fogNear: 0,
+  fogFar: 15,
 };
 
 const loadPersistedState = () => {
@@ -140,7 +140,7 @@ const createBlurredTexture = (texture, blurAmount = 30, brightness = 0.6) => {
     };
 
     img.onerror = () => {
-      console.warn("Failed to load image for backdrop");
+      console.warn("Failed to load image");
       resolve(null);
     };
 
@@ -173,11 +173,10 @@ const sleeveWidth = 1;
 const sleeveHeight = 1;
 const sleeveThickness = 0.006;
 const sleeveGroup = new THREE.Group();
-sleeveGroup.position.y = 0.2; // Raise the vinyl from the floor
+const floorY = -0.6;
+sleeveGroup.position.y = floorY + 1.2; // Fixed height 1.2 units above floor
+// No default rotation - starts flat
 scene.add(sleeveGroup);
-
-// Update controls target to match sleeveGroup position
-controls.target.set(0, sleeveGroup.position.y, 0);
 
 const sleeveBodyGeometry = new THREE.BoxGeometry(sleeveWidth, sleeveHeight, sleeveThickness);
 const sleeveBodyMaterial = new THREE.MeshStandardMaterial({
@@ -247,10 +246,7 @@ const persistState = () => {
   }
 };
 
-const frontTexture = createTexture(artworkChoices[state.frontArt] ?? artworkChoices[DEFAULT_STATE.frontArt], () => {
-  // Create backdrop after front texture loads
-  setTimeout(() => createBlurredBackdrop(), 100);
-});
+const frontTexture = createTexture(artworkChoices[state.frontArt] ?? artworkChoices[DEFAULT_STATE.frontArt]);
 const frontMaterial = new THREE.MeshStandardMaterial({
   map: frontTexture,
   roughness: 0.8,
@@ -324,9 +320,7 @@ const overlayMaterials = [overlayMaterialFront, overlayMaterialBack];
 
 const reloadArtwork = () => {
   frontMaterial.map?.dispose?.();
-  const frontTex = createTexture(artworkChoices[state.frontArt], () => {
-    createBlurredBackdrop();
-  });
+  const frontTex = createTexture(artworkChoices[state.frontArt]);
   frontMaterial.map = frontTex;
   frontMaterial.needsUpdate = true;
 
@@ -362,64 +356,8 @@ const updateHemiLight = () => {
 
 updateHemiLight();
 
-// Create backdrop with front artwork
-let backdropTexture = null;
-let backdropMesh = null;
+// Create floor
 let floorMesh = null;
-
-const createBlurredBackdrop = async () => {
-  // Dispose old backdrop texture if exists
-  if (backdropTexture) {
-    backdropTexture.dispose();
-    backdropTexture = null;
-  }
-
-  // Get front artwork texture
-  const frontTex = frontMaterial.map;
-  if (!frontTex) return;
-
-  // Create blurred texture (brighter, more visible)
-  try {
-    backdropTexture = await createBlurredTexture(frontTex, 40, 0.6);
-    if (!backdropTexture) return;
-
-    // Create a large plane for the backdrop (far behind the scene)
-    if (!backdropMesh) {
-      const backdropGeometry = new THREE.PlaneGeometry(20, 20);
-      const backdropMaterial = new THREE.MeshStandardMaterial({
-        map: backdropTexture,
-        emissive: 0x000000,
-        roughness: 1,
-        metalness: 0,
-        side: THREE.DoubleSide,
-      });
-
-      backdropMesh = new THREE.Mesh(backdropGeometry, backdropMaterial);
-      backdropMesh.position.set(0, 0, -5); // Far behind
-      backdropMesh.rotation.y = Math.PI; // Face the camera
-      scene.add(backdropMesh);
-    } else {
-      backdropMesh.material.map?.dispose();
-      backdropMesh.material.map = backdropTexture;
-      backdropMesh.material.needsUpdate = true;
-    }
-
-    // Apply same texture to floor
-    if (floorMesh) {
-      floorMesh.material.map?.dispose();
-      const floorTexture = backdropTexture.clone();
-      floorTexture.wrapS = THREE.RepeatWrapping;
-      floorTexture.wrapT = THREE.RepeatWrapping;
-      floorTexture.repeat.set(2, 2); // Tile the texture on the floor
-      floorMesh.material.map = floorTexture;
-      floorMesh.material.needsUpdate = true;
-    }
-  } catch (error) {
-    console.warn("Failed to create blurred backdrop", error);
-  }
-};
-
-// Create floor (texture will be applied when backdrop is created)
 const floorGeometry = new THREE.PlaneGeometry(80, 80);
 const floorMaterial = new THREE.MeshStandardMaterial({
   color: state.backgroundColor, // Match background color
@@ -431,8 +369,6 @@ floorMesh.rotation.x = -Math.PI / 2;
 floorMesh.position.y = -0.6;
 floorMesh.receiveShadow = true;
 scene.add(floorMesh);
-
-// Backdrop will be created when front texture loads
 
 const updateBrightness = () => {
   const baseHemiIntensity = state.hemiIntensity;
@@ -463,19 +399,12 @@ const updateFog = () => {
 updateFog();
 
 updateVinylReveal(state.vinylReveal);
-// Backdrop will be created when front texture loads (see frontTexture.onLoad above)
 
 const applyCustomArtwork = (material, file) => {
   const reader = new FileReader();
   reader.onload = () => {
     material.map?.dispose?.();
-    const isFront = material === frontMaterial;
-    material.map = createTexture(reader.result, () => {
-      // Update backdrop if front artwork changed
-      if (isFront) {
-        createBlurredBackdrop();
-      }
-    });
+    material.map = createTexture(reader.result);
     material.needsUpdate = true;
   };
   reader.readAsDataURL(file);
@@ -661,22 +590,6 @@ fogFolder
     persistState();
   });
 fogFolder
-  .addColor(state, "fogColor")
-  .name("Color")
-  .onChange((value) => {
-    // Sync background color with fog color
-    state.backgroundColor = value;
-    scene.background.set(value);
-    renderer.setClearColor(value);
-    document.body.style.background = value;
-    if (floorMesh) {
-      floorMesh.material.color.set(value);
-      floorMesh.material.needsUpdate = true;
-    }
-    updateFog();
-    persistState();
-  });
-fogFolder
   .add(state, "fogNear", 0, 20, 0.1)
   .name("Near")
   .onChange((value) => {
@@ -765,7 +678,7 @@ const animate = () => {
     const dz = camera.position.z - controls.target.z;
     const horizontalDistance = Math.sqrt(dx * dx + dz * dz) || 2.5;
 
-    // Rotate around the object while preserving zoom distance
+    // Rotate around the fixed target while preserving zoom distance
     camera.position.x = controls.target.x + Math.cos(cameraAngle) * horizontalDistance;
     camera.position.z = controls.target.z + Math.sin(cameraAngle) * horizontalDistance;
     camera.position.y = controls.target.y + cameraHeight;
