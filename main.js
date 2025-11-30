@@ -655,10 +655,13 @@ renderer.domElement.addEventListener("mouseleave", () => {
 // Disable default OrbitControls rotation
 controls.enableRotate = false;
 
-// Camera orbit variables
-let cameraAngle = 0;
-let baseCameraDistance = 2.5;
-const cameraHeight = 0.85;
+// Camera orbit variables - initialize based on starting camera position
+const initialCameraPos = camera.position.clone();
+const targetPos = controls.target.clone();
+const dx = initialCameraPos.x - targetPos.x;
+const dz = initialCameraPos.z - targetPos.z;
+let cameraAngle = Math.atan2(dz, dx); // Initialize angle based on starting position
+const cameraHeight = initialCameraPos.y - targetPos.y; // Use actual height difference
 
 const clock = new THREE.Clock();
 const animate = () => {
@@ -676,9 +679,9 @@ const animate = () => {
     // Get the current horizontal distance to preserve zoom
     const dx = camera.position.x - controls.target.x;
     const dz = camera.position.z - controls.target.z;
-    const horizontalDistance = Math.sqrt(dx * dx + dz * dz) || 2.5;
+    const horizontalDistance = Math.sqrt(dx * dx + dz * dz) || Math.sqrt(3 * 3 + 3 * 3); // Use initial distance as fallback
 
-    // Rotate around the fixed target while preserving zoom distance
+    // Rotate around the fixed target while preserving zoom distance and height
     camera.position.x = controls.target.x + Math.cos(cameraAngle) * horizontalDistance;
     camera.position.z = controls.target.z + Math.sin(cameraAngle) * horizontalDistance;
     camera.position.y = controls.target.y + cameraHeight;
